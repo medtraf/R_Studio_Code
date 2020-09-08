@@ -1,0 +1,269 @@
+---
+title: "Assignment 1:Forecasting - Fundamental Concepts (TS1)"
+author: "M. Ertan Ornek NU SPS Predict 413:SEC 57"
+date: "September 24, 2017"
+output: pdf_document
+---
+\pagebreak
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r echo=FALSE, message=FALSE}
+
+require(fBasics)
+require(quantmod)   
+require(fpp)      
+require(knitr)      
+require(ggplot2)   
+
+```
+
+
+## Part 1 - Exploratory Data Analaysis (EDA)
+### Data
+
+Consider the monthly log returns of GE stock from January 1981 to December
+2013. The original data are monthly returns for General Electric (GE) stock, CRSP value-
+weighted index (VW), CRSP equal-weighted index (EW), and S&P composite index (SP)
+from January 1981 to December 2013. The returns include dividend distributions. The data
+file is m-ge3dx8113.txt with column names PERMNO of GE, date, ge, vwretd, ewretd, and
+sprtrn, respectively.
+```{r}
+sourceData= read.table("m-ge3dx8113.txt", header=T)
+head(sourceData)
+```
+
+### (a)Compute the sample mean, standard deviation, skewness, excess kurtosis, minimum,and maximum of each untransformed simple return series. What do these statistics tell you?
+
+
+```{r,echo=FALSE}
+expSourceData=exp(sourceData-1)
+kable(basicStats(expSourceData[,-(1:2)]), 
+      caption='Basic Stats of Untransformed Return Series')
+```
+
+***After reversing the log returns, the results show that all variables deviate from normal distribution.  They are generally negatively skewed and leptokurtic.  EW shows highest excess kurtosis and therefore indicating the highest fat-tailedness.  Therefore they differ from a normal distribution as expected for typical financial data.***
+
+### (b)Transform the simple returns to log returns (e.g., ln(ge)). Compute the sample mean,standard deviation, skewness, excess kurtosis, minimum, and maximum of each log re-turn series. Interpret and compare to the untransformed statistics above.
+
+```{r,echo=FALSE}
+logSource=sourceData[,-(1:2)]
+logSourceStats = basicStats(logSource)
+kable(logSourceStats[c('Mean', 'Stdev', 'Skewness', 'Kurtosis', 'Minimum', 'Maximum'),], 
+caption='Log Transformed Series')
+```
+
+***When we apply log transformations, we notice that the data becomes more negatively skewed and Kurtosis increases for all variables. This suggests that log transformation may not be suitable to bring data to a normal distribution.***
+
+### (c)Test the null hypothesis that the mean of the log returns of GE stock is zero. Interpret.
+
+```{r,echo=FALSE}
+t.test(logSource$ge)
+```
+
+***It appears that we can reject the null hypothesis that the mean of log returns of GE stock is zero as the p-value is very low.  There is a high chance that the log return o fGE stock is not zero.***
+
+### (d)What are the pairwise associations between the variables? Interpret.
+
+```{r,echo=FALSE}
+
+cor.test(logSource$ge,logSource$sprtrn)
+cor.test(logSource$ge,logSource$vwretd)
+cor.test(logSource$ge,logSource$ewretd)
+```
+
+***When we look at the correlations between GE and other market indexes we see significant correlations. If they were to be utilized in a model we might be facing multicollinearity issues.***
+
+###(e) Obtain the empirical density plot and QQ plot of the daily log returns of GE stock and the S&P composite index. Interpret these plots.
+```{r,echo=FALSE}
+d1=density(logSource$ge)
+d2=density(logSource$sprtrn)
+par(mfcol=c(1,2))
+plot(d1$x,d1$y,xlab='returns',ylab='density',main="GE",type='l')
+plot(d2$x,d2$y,xlab='returns',ylab='density',main='SP',type='l')
+qqnorm(logSource$ge,main="GE QQ PLot")
+qqline(logSource$ge)
+qqnorm(logSource$sprtrn,main="S&P QQ PLot")
+qqline(logSource$sprtrn)
+```
+
+*** From the inspection of the QQ plots, the daily log returns of GE deviate from the normal more significantly than S&P.  S&P shows a longer left tail.  ***
+
+
+## Part 2 - Hypothesis tests
+Consider again the monthly log returns of GE stock from Jan-
+uary 1981 to December 2013. The original data are monthly returns for General Electric
+(GE) stock, CRSP value-weighted index (VW), CRSP equal-weighted index (EW), and S&P
+composite index (SP) from January 1981 to December 2013. The returns include dividend
+distributions. The data file is m-ge3dx8113.txt with column names PERMNO of GE, date,
+ge, vwretd, ewretd, and sprtrn, respectively. Perform the following and draw conclusions
+using the 5% significance level.
+
+###(a)Construct a 95% confidence interval for the monthly log returns of GE stock.
+```{r,echo=FALSE}
+ge=logSource$ge
+t.test(ge)
+
+```
+
+
+***95% Confidence interval is :0.005878371 to 0.019921654***
+
+### (b)Test H0 : m3 = 0 versus Ha : m3 6= 0, where m3 denotes the skewness of the return.
+
+```{r,echo=FALSE}
+tm3=skewness(ge)/sqrt(6/length(ge))
+tm3
+paste("p-value:")
+paste(2*(1-pnorm(abs(tm3))))
+```
+
+***We fail to reject the null hypotheseis that skewness is zero.***
+
+###(c)Test H0 : K = 3 versus Ha : K not 3, where K denotes kurtosis.
+```{r,echo=FALSE}
+kurtosis(ge)
+tk=kurtosis(ge)/sqrt(24/length(ge))
+tk
+paste("p-value:")
+paste(2*(1-pnorm(abs(tk))))
+```
+
+***We reject the null hypothesis that excess kurtosis is zero, which is same as Kurtosis being 3. ***
+
+##Part 3 - Time series models 1
+
+Use the monthly Australian short-term overseas visitors
+data, May 1985 - April 2005. (Data set: visitors) in the Hyndeman text.
+
+### (a) Make a time plot of your data and describe the main features of the series.
+```{r,echo=FALSE}
+suppressMessages(require(fpp))
+plot(visitors)
+```
+
+*** The it appears that there is a cyclical peaking every year.  Possibly during certain month of the years.***
+
+### (b) Forecast the next two years using Holt-Winters' multiplicative method. Assess the fore-
+cast viablility.
+```{r,echo=FALSE}
+visit = window(visitors)
+fit_multi = hw(visit, seasonal="multiplicative")
+print(fit_multi)
+plot(fit_multi,cex.lab=0.5)
+```
+
+###(c) Why is multiplicative seasonality necessary here?
+
+As the seasonal variations are changing proportional to the level of the time series, multiplicative seasonality appears more appropriate.
+
+
+###(d) Experiment with making the trend exponential and/or damped. Interpret and compare.
+
+```{r,echo=FALSE}
+
+fit_multi_damped = hw(visit, seasonal="multiplicative",damped=TRUE)
+plot(fit_multi_damped,cex.main=0.8)
+
+fit_multi_exp=hw(visit,seasonal="multiplicative",exponential=TRUE)
+plot(fit_multi_exp,cex.main=0.8)
+
+fit_multi_damped_exp = hw(visit, seasonal="multiplicative",exponential=TRUE,damped=TRUE)
+plot(fit_multi_damped_exp,cex.main=0.8)
+
+```
+
+###(e) Compare the RMSE of the one-step forecasts from the various methods. Which do you prefer and why?
+
+```{r,echo=FALSE}
+accuracy(fit_multi)
+accuracy(fit_multi_damped)
+accuracy(fit_multi_exp)
+accuracy(fit_multi_damped_exp)
+```
+
+***It appears that RMSE of damped Holt-Winter's multiplicative method gave us the lowest RMSE.  Lower error is preferable. ***
+
+## Part 4:
+###Time series models 2 (1 point) Use the monthly Australian short-term overseas visitors data, May 1985 - April 2005 to fit each of the following models to the same data:
+
+###(a) A multiplicative Holt-Winters' method;
+```{r,echo=FALSE}
+fit_multi <- hw(visit,seasonal="multiplicative")
+plot(fit_multi)
+plot
+hist(residuals(fit_multi),nclass=20)
+plot
+plot(residuals(fit_multi))
+plot
+accuracy(fit_multi)
+```
+
+
+###(b) An ETS model;
+```{r,echo=FALSE}
+fit_mam <- ets(visitors, model="ZZZ")
+plot(forecast(fit_mam))
+hist(residuals(fit_mam),nclass=20)
+plot(residuals(fit_mam))
+accuracy(fit_mam)
+```
+
+###(c) An additive ETS model applied to a Box-Cox transformed series;
+```{r,echo=FALSE}
+fit_ana_box <- ets(visitors,additive.only=TRUE,lambda=TRUE)
+plot(forecast(fit_ana_box))
+hist(residuals(fit_ana_box),nclass=20)
+plot(residuals(fit_ana_box))
+accuracy(fit_ana_box)
+```
+
+
+###(d) A seasonal naive method applied to the Box-Cox transformed series;
+```{r,echo=FALSE}
+fit_naive <- snaive(visitors,lambda=TRUE)
+plot(forecast(fit_naive))
+hist(residuals(fit_naive),nclass=20)
+plot(residuals(fit_naive))
+accuracy(fit_naive)
+```
+
+###(e) An STL decomposition applied to the Box-Cox transformed data followed by an ETS model applied to the seasonally adjusted (transformed) data.
+```{r,echo=FALSE}
+fit_stld <- stlf(visitors,method="ets",lambda=TRUE) 
+plot(forecast(fit_stld))
+hist(residuals(fit_stld),nclass=20)
+plot(residuals(fit_stld))
+accuracy(fit_stld)
+```
+
+###(f) For each model, look at the residual diagnostics and compare the forecasts for the nexttwo years. Which do you prefer and why?
+
+***When we compare the residuals the  multiplicative Holt-Winters' method and ETS M,A,M appears to provide near random residuals unlike other models, where the residuals appear to be not very random.  The errors are relatively low for HW and ETS although the lowest one is STL decomposition applied to Box-Cox transformed data followed by ETS (Section e).  However, section (e) model gives high residuals that seem to significant and increasing into the future.  I would prefer HW model due to its consistency and relatively low error.**
+
+##Part 5: Report: For each data set, provide an summary from which an interested party can take action. Use the appropriate plots and statistics needed to support your recommendations.
+
+### GE Stock and CRSP Data Analysis
+Based on the 1981-2013 GE monthly log returns we have seen that GE return performance showed significant positive correlation with the market indeces. We are confident (95%) that the GE monthly return will be between 0.00708357 and 0.01498357 with a mean of 0.01298357.
+```{r,echo=FALSE}
+d1=density(logSource$ge)
+d2=density(logSource$sprtrn)
+par(mfcol=c(1,2))
+plot(d1$x,d1$y,xlab='log returns',ylab='density',main="GE",type='l')
+plot(d2$x,d2$y,xlab='log returns',ylab='density',main='SP',type='l')
+
+```
+
+
+### Australian Visitors
+When we examined the overseas visitors to Australia, we noticed a seasonal variation in the number of visitors and utilized various forecasting techniques to predict the number of visitors.  We believe that damped Holt-Winter's multiplicative method gave us a reasonable model. 
+```{r, echo=FALSE}
+fit_multi_damped = hw(visit, seasonal="multiplicative",damped=TRUE)
+plot(fit_multi_damped,cex.main=0.8)
+```
+
+The data shows that the vistor growth has dampened and is expected to hold the cyclical pattern.
+
+Although an STL decomposition applied to the Box-Cox transformed data followed by an ETS model showed better RMSE, the residuals showed significant heteroschedascity.  Therefore we recommend the Holt-Winter's Multiplicative method.
+
+

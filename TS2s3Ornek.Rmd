@@ -1,0 +1,286 @@
+---
+title: 'Assignment #2 Time Series Analysis - Fundamental Concepts (TS2)'
+author: "M. Ertan Ornek"
+date: "October 2, 2017"
+output: pdf_document
+---
+\pagebreak
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(fBasics)
+require(quantmod)   
+require(fpp)      
+require(knitr)      
+require(ggplot2)  
+require(gridExtra)
+
+```
+
+## Source Data
+###Two data sets are utilized for this assignment: Simple return data ukars data set.  Simple return data contains the following stocks that are daily returns for Netflix (nflx), value-weighted index (wretd),  equal-weighted index (ewretd) and S&P composite index (sprtrn) from January 2, 3009 to December 31, 2013.  UK Cars data covers quarterly UK passenger vehicle production data.
+
+```{r,echo=FALSE}
+da=read.table("d-nflx3dx0913.txt",header=T)
+
+```
+
+
+## Analysis
+
+### 1.EDA (1 point) Consider the daily simple returns of Netflix (NFLX) stock, CRSP value-weighted index (VW), CRSP equal-weighted index (EW), and the S&P composite index (SP) from January 2, 2009 to December 31, 2013. Returns of the three indices include dividends. The data are in the file d-nx3dx0913.txt and the columns show PERMNO, date,nx, vwretd, ewretd, and sprtn, respectively, with the last four columns showing the simple returns.
+
+
+
+
+(a) Conduct, contrast, and compare the EDA of the raw data and the log-transformed data of each time series.
+
+The following is the summary of basic statisctics of our raw data which are simple returns.
+```{r,echo=FALSE}
+kable(head(da),caption='Sample Simple Return Data')
+kable(basicStats(da[,3:6]),caption='Basic Statistics Of Simple Returns')
+ library(ggplot2)
+library(scales)
+ggplot(data = da, aes(x = as.Date(as.character(da$date),format="%Y%m%d"), y = da$nflx)) + geom_line() 
+```
+
+After adding 1 to returns and log transforming the returns, we obtain log returns.  The bsic statistics for log returns are as follows.
+
+```{r,echo=FALSE}
+
+logda=log(da[,3:6]+1) 
+kable(basicStats(logda),caption='Basic Statistics Of Log Returns')
+
+```
+
+***When we compare the simple returns to log returns, we notice that we get the most significant improvement in the skewness of Netflix data.  High Kurtosis for Netflix persists after the transformation (raw data 21.8, after log transformation  23.5). *** 
+
+(b) Obtain the empirical density plot and QQ plot of the daily log returns of NFLX stock and the S&P composite index. Interpret the plots.
+
+```{r,echo=FALSE}
+page1 = ggplot(logda, aes(logda$nflx)) + stat_density(alpha = 0.4) + labs(x="Log Returns", y="Density") + ggtitle("Netflix") + theme_classic()
+  
+  
+  page2 = ggplot(logda, aes(da$sprtrn)) + stat_density(alpha = 0.4) + labs(x="Log Returns", y="Density") +ggtitle("S&P") + theme_classic()
+grid.arrange(page1, page2, ncol=2)
+
+```
+```{r,echo=FALSE}
+qqnorm(logda$nflx,main="Log Netflix QQ PLot")
+qqline(logda$nflx)
+```
+```{r,echo=FALSE}
+qqnorm(logda$sprtrn,main="Log S&P QQ PLot")
+qqline(logda$sprtrn)
+```
+*** Inspection of empirical density plots of show heavy tailedness for both Netflix and S&P. There may be few outliers in our data set, but the heavy tailedness is relatively symetrical.  As Dr. Ginger Holt stated "Symmetry has important implications in holding short or long financial positions and in risk management." High Kurtosis (heavy tails) may imply volatility.  ***
+
+(c) Test the null hypothesis that the mean of the log returns of NFLX stock is zero.
+
+```{r,echo=FALSE}
+t.test(logda$nflx)
+```
+
+***The one-sample t-test shows a statistic of 1.84 with p-value 0.065. Therefore, one cannot reject the null hypothesis of zero mean return at the 5% significance level.***
+
+
+(d) What are the pairwise associations between the variables.
+
+```{r,echo=FALSE}
+print ("Pairwsie Correlations")
+print("Netflix ~ VW")
+cor(logda$nflx,logda$vwretd)
+print("Netflix ~ EW")
+cor(logda$nflx,logda$ewretd)
+print("Netflix ~ S&P")
+cor(logda$nflx,logda$sprtrn)
+``` 
+
+***The pairwise correlations show some low level correlation between Netflix and other market indexes. If we remove a few outliers, we get better correlations but they don't improve significantly.  The observed correlations to market indeces stay low. Perhaps this may suggest that Netflix does not mimic the average market conditions but it is mildly susceptible to changes in the market.***
+
+```{r,echo=FALSE}
+print("Pairwise correlation after outlier removals (-0.2 to 0.2) Netflix ~ VW")
+
+
+a<-logda[which (logda$nflx<0.2 & logda$nflx>-0.2 ),]
+##
+b<-logda[which (logda$nflx<0.2 & logda$nflx>-.2 ),]
+##b
+
+##/plot(a$nflx ,b$vwretd, main="Netflix ~ VW",   	xlab="Netflix ", ylab="VW ")
+cor(a$nflx,b$vwretd)
+```
+
+
+### 2.Hypothesis tests (1.0 point) Consider again the daily simple returns of Net ix (NFLX) stock, CRSP value-weighted index (VW), CRSP equal-weighted index (EW), and the S&P composite index (SP) from January 2, 2009 to December 31, 2013. Returns of the three indices include dividends. The data are in the file d-nx3dx0913.txt and the columns show PERMNO, date, nx, vwretd, ewretd, and sprtn, respectively, with the last four columns showing the simple returns.
+
+(a) Test the null hypothesis that the log return (ln(nflx)) is symmetric with respect to its mean.
+
+```{r,echo=FALSE}
+nflx=logda$nflx
+tm3=skewness(nflx)/sqrt(6/length(nflx))
+print(paste("Skewness Test:",tm3))
+p_value = 2*(1 - pnorm(abs(tm3))) # computing the p-value
+print(paste("p-value: ", p_value))
+
+```
+
+
+***If we test H0 : SK = 0 versus Ha : SK not equal to 0, where SK denotes the skewness of the return. Reject the null
+hypothesis at a 0.05 level based on p-value of 3.09e-10. We can say that we can confidently reject the probability that there is symmetry.***
+
+
+(b) Test H0 : K = 0 versus Ha : K != 0, where K denotes kurtosis.
+
+```{r,echo=FALSE}
+tk=kurtosis(nflx,method="moment")/sqrt(24/length(nflx))
+print(paste("Kurtosis Test Statistic:",tk))
+ptk = 2 * (1 - pnorm(abs(tk)))
+print(paste("p-value: ", ptk))
+
+```
+***Based of the p value of zero we can reject the hypothesis that there is no kurtosis. This implies that we have Kurtosis and relates to volatility of forecasting. ***  
+
+
+(c) Construct a 95% confidence interval (CI) for the expected daily log returns of Netflix stock.
+
+```{r,echo=FALSE}
+t.test(logda$nflx)
+
+print(paste("Confidence Interval (95%): ", t.test(logda$nflx)[4]))
+exp(-0.000126484354881271)-1
+exp(0.00411859146786966)-1
+```
+
+(d) Describe the meaning of the CI as if you are explaining it to a client or employer.
+
+***Based on our analysis of sample of log returns of Netflix stock, we are 95% confident that the true average log return for Netflix will fall between -0.000126484354881271 and  0.00411859146786966. This interval corresponds to real return interval of -0.00013 to 0.00413.  ***
+
+### 3. Time series models (2.0 points) use the quarterly UK passenger vehicle production data from 1997:1{2005:1 (data set ukcars) from the Hyndeman text. Begin by making a time plot of your data and describe the main features of the series.
+
+(a) Decompose the series using STL and obtain the seasonally adjusted data.
+
+```{r,echo=FALSE}
+cardata = window(ukcars, start=1997)
+
+a<-ukcars
+plot(cardata, type="o", xlab = "Years", ylab = "UK Auto Production (x1000)")
+fit<- stl(cardata, s.window = "periodic")
+plot(fit)
+
+```
+***The car data shows that there is a very reliable seasonal compoenent that does not vary with the trend and the trend shows growth until about 2000 and then dips and slowly starts increasing by 2001.***
+
+```{r,echo=FALSE}
+seasadjusted <- seasadj(fit)
+seasonalfactors <- fit$time.series[2:11, "seasonal"] 
+print(seasadjusted)
+print("")
+print(seasonalfactors)
+```
+
+
+
+(b) Forecast the next two years of the series using an additive damped trend method applied to the seasonally adjusted data. Then re-seasonalize the forecasts. Record the parameters of the method and report the RMSE of the one-step forecasts from your method.
+
+```{r,echo=FALSE}
+add_damped_trend = holt(seasadjusted, damped = TRUE)
+print(add_damped_trend)
+```
+
+
+
+```{r,echo=FALSE}
+plot(add_damped_trend, xlab = "Years", ylab = "UK Auto Production (x1000)")
+```
+
+```{r,echo=FALSE}
+print(add_damped_trend$model)
+```
+
+```{r,echo=FALSE}
+print(accuracy(add_damped_trend))
+```
+
+```{r,echo=FALSE}
+reasonalizedadd_damped_trend = add_damped_trend$mean + seasonalfactors   
+```
+
+```{r,echo=FALSE}
+plot(cardata, type = "o", xlab = "Years", ylab = "UK Auto Production (x1000)", xlim = c(1997, 2008))
+lines(reasonalizedadd_damped_trend, type = "o", col = "red")
+```
+
+
+(c) Forecast the next two years of the series using Holt's linear method applied to the seasonally adjusted data. Then reseasonalize the forecasts. Record the parameters of the method and report the RMSE of the one-step forecasts from your method.
+
+```{r,echo=FALSE}
+holtlinear = holt(seasadjusted)
+
+plot(holtlinear, xlab = "Years", ylab = "UK Auto Production (x1000)")
+
+
+```
+```{r,echo=FALSE}
+print(holtlinear$model)
+```
+
+
+```{r,echo=FALSE}
+print(accuracy(holtlinear))
+```
+```{r,echo=FALSE}
+reseasoned_holtlinear = holtlinear$mean + seasonalfactors
+
+plot(cardata, type = "o", xlab = "Years", ylab = "UK Auto Production (x1000)", xlim = c(1997, 2008))
+lines(reseasoned_holtlinear, type = "o", col = "red")
+```
+
+
+(d) Now use ets() to choose a seasonal model for the data.
+
+```{r,echo=FALSE}
+etsmodel<- ets(cardata, model = "ZZZ")
+print(etsmodel)
+
+```
+
+```{r,echo=FALSE}
+plot(forecast(etsmodel,h=10), xlab = "Years", ylab = "UK Auto Production (x1000)")
+```
+```{r,echo=FALSE}
+print(accuracy(etsmodel))
+```
+
+
+(e) Compare the RMSE of the fitted model with the RMSE of the model you obtained using an STL decomposition with Holt's method. Which gives the better in-sample fits?
+
+```{r,echo=FALSE}
+print(paste("Additive Damped Trend Method RMSE: ", accuracy(add_damped_trend)[2]))
+print(paste("Holt's Linear Method RMSE: ", accuracy(holtlinear)[2]))
+print(paste("ETS Model RMSE: ", accuracy(etsmodel)[2]))
+```
+
+*** It appears that the Additive- Damped Model provided us the lowest RMSE value thus the best fit. However, RMSE for the damped method ***
+
+(f) Compare the forecasts from the two approaches? Which seems most reasonable?
+
+***Although we have obtained lower RMSE for Damped Holt's method, the ETS provides results that show the seasonality that we expect to observe. ***
+
+```{r,echo=FALSE}
+par(mfrow = c(3,1))
+p1 = plot(forecast(add_damped_trend), type = "o", xlab = "Years", ylab = "K Auto Production")
+p2 = plot(forecast(holtlinear), type = "o", xlab = "Years", ylab = "K Auto Production")
+p3 = plot(forecast(etsmodel,h=10), type = "o", xlab = "Years", ylab = "K Auto Production")
+ggplot(data=data.frame(volumeData),aes(x=volume.value,y=prop.infants))+geom_point(aes(x=volume.value,y=prop.adults),col='red',show.legend=TRUE)+geom_point(aes(y=prop.infants),color='blue')+geom_vline (xintercept=split.infants)+geom_vline(xintercept=split.adults)+geom_hline(yintercept = 0.5)+   annotate("text", label = round(split.adults,2), x = split.adults+100, y = 0.5*1.1, size = 6, colour = "red")+   annotate("text", label = round(split.infants,2), x = split.infants+100, y = 0.5*1.1, size = 6, colour = "blue") + xlab("Volume")+ylab("Proportion")+ggtitle("Proportion of Adults and Infants Protected")+   annotate("text", x=900, y=0.45, label= "Infants",color="blue") +
+
+```
+
+***When we reseasonalize the Holts methos we get similar results to ETS method.***
+
+
+### Report
+
+
+***If you intend to utilize the results of the analysis in Section 3 for investing, we believe that the forecast provided by The ETS captures the seaonality factor exhibitied by the historical data. It is also possible to utilize Damped Holt's Method but this model, although simple, it does not exhibit the seasonal fluctuations. On the other hand Holt's method may be suitable on a longer term, as it may capture the auto production accurately on average. As the ETS method is an exploration of a plethora of methods and parameters and well optimized, it seems to accomplish obtaining a resonable forecast.***
+
