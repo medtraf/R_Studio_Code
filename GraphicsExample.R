@@ -1,4 +1,4 @@
-### Albus Team D Checkpoint C ###
+
 
 library(plyr)     # to rename columns
 library(ggplot2)  # for making plots
